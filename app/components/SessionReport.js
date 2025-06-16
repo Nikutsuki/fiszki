@@ -361,35 +361,6 @@ const SessionReport = ({
           </Link>
         </div>
       </div>
-
-      {/* Study Tips */}
-      {stats.score < 80 && (
-        <div className="bg-blue-50 dark:bg-blue-900/50 border border-blue-200 dark:border-blue-800 rounded-lg p-6">
-          <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-100 mb-3">
-            💡 Study Tips
-          </h3>
-          <ul className="text-blue-800 dark:text-blue-200 space-y-2 text-sm">
-            <li>
-              • Review the questions you got wrong and understand why the
-              correct answer is right
-            </li>
-            <li>• Take breaks between study sessions to help with retention</li>
-            <li>
-              • Try studying the material in smaller chunks over multiple days
-            </li>
-            <li>
-              • Consider creating your own questions about the topic to test
-              your understanding
-            </li>
-            {stats.averageResponseTime > 30 && (
-              <li>
-                • You might benefit from more practice - your average response
-                time was {formatDuration(stats.averageResponseTime)}
-              </li>
-            )}
-          </ul>
-        </div>
-      )}
     </div>
   );
 };

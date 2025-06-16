@@ -51,51 +51,49 @@ const StudySetCard = ({ studySet, onDelete, showActions = true }) => {
               {stats.totalSessions !== 1 ? "s" : ""}
             </span>
           </div>
-          {stats.averageScore > 0 && (
-            <>
-              <div className="flex items-center space-x-2">
-                <span className="text-gray-500 dark:text-gray-400">📊</span>
-                <span className="text-gray-600 dark:text-gray-300">
-                  {stats.averageScore}% avg
-                </span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <span className="text-gray-500 dark:text-gray-400">🏆</span>
-                <span className="text-gray-600 dark:text-gray-300">
-                  {stats.bestScore}% best
-                </span>
-              </div>
-            </>
-          )}
+          <div className="flex items-center space-x-2">
+            <span className="text-gray-500 dark:text-gray-400">📊</span>
+            <span className="text-gray-600 dark:text-gray-300">
+              {stats.averageScore > 0 ? `${stats.averageScore}% avg` : "No avg yet"}
+            </span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <span className="text-gray-500 dark:text-gray-400">🏆</span>
+            <span className="text-gray-600 dark:text-gray-300">
+              {stats.bestScore > 0 ? `${stats.bestScore}% best` : "No best yet"}
+            </span>
+          </div>
         </div>
 
-        {stats.totalTimeSpent > 0 && (
-          <div className="mt-3 flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-300">
-            <span className="text-gray-500 dark:text-gray-400">⏱️</span>
-            <span>Total time: {formatDuration(stats.totalTimeSpent)}</span>
-          </div>
-        )}
+        <div className="mt-3 flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-300">
+          <span className="text-gray-500 dark:text-gray-400">⏱️</span>
+          <span>
+            Total time: {stats.totalTimeSpent > 0 ? formatDuration(stats.totalTimeSpent) : "No time yet"}
+          </span>
+        </div>
       </div>
 
       {/* Progress bar for best score */}
-      {stats.bestScore > 0 && (
-        <div className="px-6 pb-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
-              Best Score Progress
-            </span>
-            <span className="text-xs font-semibold text-gray-800 dark:text-gray-200">
-              {stats.bestScore}%
-            </span>
-          </div>
-          <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2 overflow-hidden">
-            <div
-              className="bg-gradient-to-r from-blue-500 to-green-500 h-2 rounded-full transition-all duration-500 ease-out"
-              style={{ width: `${stats.bestScore}%` }}
-            />
-          </div>
+      <div className="px-6 pb-4">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
+            Best Score Progress
+          </span>
+          <span className="text-xs font-semibold text-gray-800 dark:text-gray-200">
+            {stats.bestScore > 0 ? `${stats.bestScore}%` : "0%"}
+          </span>
         </div>
-      )}
+        <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2 overflow-hidden">
+          <div
+            className={`h-2 rounded-full transition-all duration-500 ease-out ${
+              stats.bestScore > 0 
+                ? "bg-gradient-to-r from-blue-500 to-green-500" 
+                : "bg-gray-300 dark:bg-gray-500"
+            }`}
+            style={{ width: `${stats.bestScore || 0}%` }}
+          />
+        </div>
+      </div>
 
       {/* Footer with actions */}
       <div className="px-6 py-4 bg-gray-50 dark:bg-gray-700 border-t border-gray-200 dark:border-gray-600 rounded-b-lg">
