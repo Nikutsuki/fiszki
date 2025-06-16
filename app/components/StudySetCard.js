@@ -77,6 +77,26 @@ const StudySetCard = ({ studySet, onDelete, showActions = true }) => {
         )}
       </div>
 
+      {/* Progress bar for best score */}
+      {stats.bestScore > 0 && (
+        <div className="px-6 pb-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
+              Best Score Progress
+            </span>
+            <span className="text-xs font-semibold text-gray-800 dark:text-gray-200">
+              {stats.bestScore}%
+            </span>
+          </div>
+          <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2 overflow-hidden">
+            <div
+              className="bg-gradient-to-r from-blue-500 to-green-500 h-2 rounded-full transition-all duration-500 ease-out"
+              style={{ width: `${stats.bestScore}%` }}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Footer with actions */}
       <div className="px-6 py-4 bg-gray-50 dark:bg-gray-700 border-t border-gray-200 dark:border-gray-600 rounded-b-lg">
         <div className="flex items-center justify-between">
@@ -105,18 +125,6 @@ const StudySetCard = ({ studySet, onDelete, showActions = true }) => {
           </div>
         </div>
       </div>
-
-      {/* Progress bar for best score */}
-      {stats.bestScore > 0 && (
-        <div className="px-6 pb-2">
-          <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-1.5">
-            <div
-              className="bg-gradient-to-r from-blue-500 to-green-500 h-1.5 rounded-full transition-all duration-300"
-              style={{ width: `${stats.bestScore}%` }}
-            />
-          </div>
-        </div>
-      )}
     </div>
   );
 };

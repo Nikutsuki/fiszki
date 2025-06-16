@@ -16,7 +16,10 @@ const Navigation = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { currentUser, logout } = useAuth();
 
-  const navItems = [{ href: "/", label: "Home", icon: "🏠" }];
+  const navItems = [
+    { href: "/", label: "Home", icon: "🏠" },
+    { href: "/stats", label: "Statistics", icon: "📊" }
+  ];
 
   const isActive = (href) => {
     if (href === "/") {

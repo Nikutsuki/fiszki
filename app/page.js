@@ -12,7 +12,7 @@ export default function Home() {
   const { currentUser, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  const { studySets, loading, error, clearError } = useStudySets();
+  const { studySets, loading, error, clearError, isReady: studySetsReady } = useStudySets();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [filteredSets, setFilteredSets] = useState([]);
@@ -42,7 +42,7 @@ export default function Home() {
     setFilteredSets(sets);
   }, [studySets, searchQuery]);
 
-  if (loading || authLoading) {
+  if (loading || authLoading || !studySetsReady) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
         <Navigation />
@@ -166,20 +166,20 @@ export default function Home() {
               />
             ))}
           </div>
-        ) : studySets.length === 0 ? (
-          // Empty State
+        ) : studySets.length === 0 && studySetsReady ? (
+          // Empty State - only show when study sets are ready and there are no study sets
           <div className="text-center py-12">
             <div className="mx-auto h-24 w-24 text-6xl mb-4">📚</div>
             <h3 className="text-xl font-medium text-gray-900 dark:text-gray-100 mb-2">
               No study sets found
             </h3>
             <p className="text-gray-500 dark:text-gray-400 mb-6">
-              Place your CSV files in the `public/study_sets` directory to see
+              Place your CSV files in the `private/study_sets` directory to see
               them here.
             </p>
           </div>
-        ) : (
-          // No Search Results
+        ) : studySets.length > 0 && studySetsReady && searchQuery ? (
+          // No Search Results - only show when we have study sets, they're ready, and we're searching
           <div className="text-center py-12">
             <div className="mx-auto h-24 w-24 text-6xl mb-4">🔍</div>
             <h3 className="text-xl font-medium text-gray-900 dark:text-gray-100 mb-2">
@@ -197,7 +197,7 @@ export default function Home() {
               </button>
             </div>
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

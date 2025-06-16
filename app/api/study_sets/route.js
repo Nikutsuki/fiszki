@@ -30,16 +30,19 @@ export async function GET() {
         { error: "Authentication required" },
         { status: 401 },
       );
-    }
-
-    const studySetsDirectory = path.join(
+    }    const studySetsDirectory = path.join(
       process.cwd(),
       "private",
       "study_sets",
     );
     const files = await fs.readdir(studySetsDirectory);
     const csvFiles = files.filter((file) => file.endsWith(".csv"));
-    return NextResponse.json(csvFiles);
+    
+    return NextResponse.json(csvFiles, {
+      headers: {
+        "Cache-Control": "private, max-age=300", // Cache for 5 minutes
+      },
+    });
   } catch (error) {
     console.error("Failed to read study sets directory:", error);
     return NextResponse.json(

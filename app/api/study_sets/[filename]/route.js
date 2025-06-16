@@ -52,13 +52,12 @@ export async function GET(request, { params }) {
         return NextResponse.json({ error: "Access denied" }, { status: 403 });
       }
 
-      const content = await fs.readFile(filePath, "utf8");
-
-      return new NextResponse(content, {
+      const content = await fs.readFile(filePath, "utf8");      return new NextResponse(content, {
         status: 200,
         headers: {
           "Content-Type": "text/csv",
-          "Cache-Control": "private, no-cache, no-store, must-revalidate",
+          "Cache-Control": "private, max-age=300, must-revalidate", // Cache for 5 minutes
+          "ETag": `"${Buffer.from(content).toString('base64').slice(0, 16)}"`, // Simple ETag
         },
       });
     } catch (fileError) {

@@ -10,12 +10,14 @@ import {
   calculateSessionStats,
 } from "../lib/types.js";
 import { shuffleArray } from "../lib/utils.js";
+import { useAuth } from "./useAuth.js";
 
 export const useSessions = () => {
   const [sessions, setSessions] = useState([]);
   const [currentSession, setCurrentSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const { updateProgress } = useAuth();
 
   // Load sessions from storage
   const loadSessions = useCallback(() => {
@@ -227,9 +229,8 @@ export const useSessions = () => {
     },
     [currentSession],
   );
-
   // Complete the current session
-  const completeSession = useCallback(() => {
+  const completeSession = useCallback(async () => {
     try {
       if (!currentSession) {
         throw new Error("No active session");
@@ -247,10 +248,36 @@ export const useSessions = () => {
       const stats = calculateSessionStats(updatedSession);
       updatedSession.score = stats.score;
 
-      // Save completed session
-      const success = sessionStorage.save(updatedSession);
+      // Prepare session statistics for progress update
+      const sessionStats = {
+        score: stats.score,
+        totalTime: updatedSession.timeSpent,
+        correctAnswers: stats.correctAnswers,
+        totalQuestions: stats.totalQuestions,
+        completedAt: updatedSession.endTime,
+      };
 
-      if (success) {
+      // Save completed session locally
+      const localSaveSuccess = sessionStorage.save(updatedSession);
+
+      if (localSaveSuccess) {        // Update user progress in users.json
+        try {
+          console.log('Updating progress for study set:', updatedSession.studySetId, 'with stats:', sessionStats);
+          const progressUpdateSuccess = await updateProgress(
+            updatedSession.studySetId,
+            sessionStats
+          );
+
+          if (progressUpdateSuccess) {
+            console.log('Progress updated successfully');
+          } else {
+            console.warn("Failed to update user progress, but session was saved locally");
+          }
+        } catch (progressError) {
+          console.error("Error updating progress:", progressError);
+          // Don't fail the session completion if progress update fails
+        }
+
         // Reload all sessions to ensure state consistency
         const allSessions = sessionStorage.getAll();
         setSessions(allSessions);
@@ -264,7 +291,7 @@ export const useSessions = () => {
       setError("Failed to complete session");
       return { success: false, error: err.message };
     }
-  }, [currentSession]);
+  }, [currentSession, updateProgress]);
 
   // Abandon current session
   const abandonSession = useCallback(() => {

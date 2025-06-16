@@ -4,7 +4,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Navigation from "../../components/Navigation.js";
 import QuizInterface from "../../components/QuizInterface.js";
@@ -15,7 +15,7 @@ import { useAuth } from "../../hooks/useAuth.js";
 export default function StudySession() {
   const router = useRouter();
   const params = useParams();
-  const { getStudySet, loading: studySetsLoading } = useStudySets();
+  const { getStudySet, loading: studySetsLoading, isReady: studySetsReady, loadStudySets } = useStudySets();
   const {
     currentSession,
     startSession,
@@ -37,21 +37,61 @@ export default function StudySession() {
   });
   const [showOptions, setShowOptions] = useState(true);
   const [isStarting, setIsStarting] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+
+  // Retry function for loading study set
+  const retryLoadStudySet = useCallback(async () => {
+    setRetryCount(prev => prev + 1);
+    setError(null);
+    setLoading(true);
+    
+    try {
+      // Force reload of study sets from server
+      await loadStudySets(true);
+      
+      // Try to get the study set again after reload
+      setTimeout(() => {
+        const foundStudySet = getStudySet(params.id);
+        if (foundStudySet) {
+          setStudySet(foundStudySet);
+          setError(null);
+        } else {
+          setError("Study set not found");
+        }
+        setLoading(false);
+      }, 100);
+    } catch (err) {
+      console.error("Retry failed:", err);
+      setError("Failed to reload study sets");
+      setLoading(false);
+    }
+  }, [params.id, getStudySet, loadStudySets]);
 
   // Load study set
   useEffect(() => {
-    if (params.id && !studySetsLoading && !authLoading && currentUser) {
+    // Only try to load study set when both auth and study sets are ready
+    if (params.id && !authLoading && currentUser && studySetsReady) {
       const foundStudySet = getStudySet(params.id);
+      
       if (foundStudySet) {
         setStudySet(foundStudySet);
+        setError(null); // Clear any previous errors
+        setLoading(false);
       } else {
+        // Set error immediately when study sets are ready but study set not found
         setError("Study set not found");
+        setLoading(false);
       }
-      setLoading(false);
-    } else if (studySetsLoading || authLoading) {
+    } else if (authLoading || studySetsLoading || !studySetsReady) {
+      // Show loading when auth is loading, study sets are loading, or study sets aren't ready yet
       setLoading(true);
+      setError(null); // Clear errors when loading
+    } else if (!currentUser) {
+      // Handle case where user is not authenticated
+      setError("Please log in to access study sets");
+      setLoading(false);
     }
-  }, [params.id, getStudySet, studySetsLoading, authLoading, currentUser]);
+  }, [params.id, getStudySet, studySetsLoading, authLoading, currentUser, studySetsReady]);
 
   const handleStartSession = async () => {
     if (!studySet || isStarting) return;
@@ -114,7 +154,7 @@ export default function StudySession() {
     }
   };
 
-  if (loading || sessionsLoading || authLoading) {
+  if (loading || sessionsLoading || authLoading || !studySetsReady) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
         <Navigation />
@@ -156,7 +196,13 @@ export default function StudySession() {
                 <p className="mt-1 text-sm text-red-700 dark:text-red-300">
                   {error}
                 </p>
-                <div className="mt-4">
+                <div className="mt-4 space-x-2">
+                  <button
+                    onClick={retryLoadStudySet}
+                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600 transition-colors"
+                  >
+                    Retry
+                  </button>
                   <button
                     onClick={() => router.push("/")}
                     className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-600 transition-colors"

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { parseCSVToStudySet } from "../lib/csvParser.js";
 import { studySetStorage } from "../lib/storage.js"; // Fallback for non-authenticated users
 import { useAuth } from "./useAuth";
@@ -7,99 +7,153 @@ export const useStudySets = () => {
   const [studySets, setStudySets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isReady, setIsReady] = useState(false); // Start as false to prevent flashing
+  const lastLoadTimeRef = useRef(null); // Use ref instead of state to avoid dependency issues
   const { currentUser, updateProgress, loading: authLoading } = useAuth();
-
   // Function to fetch and parse a single CSV file from protected endpoint
   const fetchAndParseCsv = async (filename) => {
-    try {
-      const response = await fetch(`/api/study_sets/${filename}`, {
-        credentials: "include",
-      });
+    const maxRetries = 3;
+    let lastError;
 
-      if (!response.ok) {
-        throw new Error(`Failed to fetch ${filename}: ${response.statusText}`);
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const response = await fetch(`/api/study_sets/${filename}`, {
+          credentials: "include",
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch ${filename}: ${response.statusText}`);
+        }
+
+        const csvContent = await response.text();
+        const result = parseCSVToStudySet(csvContent, filename);
+
+        if (result.success) {
+          return result.studySet;
+        } else {
+          console.error(
+            `Error parsing ${filename}:`,
+            result.error,
+            result.details,
+          );
+          throw new Error(`Failed to parse ${filename}: ${result.error}`);
+        }
+      } catch (err) {
+        lastError = err;
+        console.error(`Attempt ${attempt + 1} failed for ${filename}:`, err);
+        
+        // Don't retry on the last attempt
+        if (attempt < maxRetries - 1) {
+          // Wait before retrying (exponential backoff)
+          await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 100));
+        }
       }
-
-      const csvContent = await response.text();
-      const result = parseCSVToStudySet(csvContent, filename);
-
-      if (result.success) {
-        return result.studySet;
-      } else {
-        console.error(
-          `Error parsing ${filename}:`,
-          result.error,
-          result.details,
-        );
-        throw new Error(`Failed to parse ${filename}: ${result.error}`);
-      }
-    } catch (err) {
-      console.error(`Error loading study set ${filename}:`, err);
-      return null;
     }
-  };
 
-  // Load shared study sets (requires authentication)
-  const loadStudySets = useCallback(async () => {
+    console.error(`All attempts failed for study set ${filename}:`, lastError);
+    return null;
+  };  // Load shared study sets (requires authentication)
+  const loadStudySets = useCallback(async (forceReload = false) => {
+    // Skip loading if data is fresh (less than 5 minutes old) and not forced
+    const now = Date.now();
+    const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+    
+    if (!forceReload && lastLoadTimeRef.current && (now - lastLoadTimeRef.current) < CACHE_DURATION && studySets.length > 0) {
+      setIsReady(true);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setError(null);
-    try {
-      if (!currentUser) {
+    try {      if (!currentUser) {
         // If no user, clear study sets and stop loading
         setStudySets([]);
+        setIsReady(true); // Set ready to true even without user to prevent loading loops
         setLoading(false);
         return;
       }
 
-      // Load shared study sets from protected endpoint
-      const response = await fetch("/api/study_sets", {
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          setError("Please log in to access study sets.");
-        } else {
-          throw new Error(
-            `Failed to fetch CSV file list: ${response.statusText}`,
-          );
+      // Load shared study sets from protected endpoint with retry logic
+      let response;
+      let retries = 0;
+      const maxRetries = 3;
+      
+      while (retries < maxRetries) {
+        try {
+          response = await fetch("/api/study_sets", {
+            credentials: "include",
+          });
+          
+          if (response.ok) {
+            break; // Success, exit retry loop
+          }
+          
+          if (response.status === 401) {
+            setError("Please log in to access study sets.");
+            setLoading(false);
+            return;
+          }
+          
+          // For other errors, retry
+          if (retries === maxRetries - 1) {
+            throw new Error(`Failed to fetch CSV file list: ${response.statusText}`);
+          }
+          
+        } catch (fetchError) {
+          if (retries === maxRetries - 1) {
+            throw fetchError;
+          }
         }
-        setLoading(false);
-        return;
-      }
-
-      const csvFilesToLoad = await response.json();
+        
+        retries++;
+        // Wait before retrying (exponential backoff)
+        await new Promise(resolve => setTimeout(resolve, Math.pow(2, retries) * 100));
+      }      const csvFilesToLoad = await response.json();
       const loadedStudySets = [];
 
-      for (const filename of csvFilesToLoad) {
-        const studySet = await fetchAndParseCsv(filename);
-        if (studySet) {
-          // Merge with user-specific stats
-          let currentStats = studySet.stats;
-          const userStudySet = currentUser.progress.studySets?.find(
-            (set) => set.id === studySet.id,
-          );
-          if (userStudySet) {
-            currentStats = userStudySet.stats;
+      // Load study sets with better error handling
+      const loadPromises = csvFilesToLoad.map(async (filename) => {
+        try {
+          const studySet = await fetchAndParseCsv(filename);
+          if (studySet) {
+            // Merge with user-specific stats
+            let currentStats = studySet.stats;
+            const userStudySet = currentUser.progress.studySets?.find(
+              (set) => set.id === studySet.id,
+            );
+            if (userStudySet) {
+              currentStats = userStudySet.stats;
+            }
+            return { ...studySet, stats: currentStats };
           }
-          loadedStudySets.push({ ...studySet, stats: currentStats });
+          return null;
+        } catch (err) {
+          console.error(`Failed to load study set ${filename}:`, err);
+          return null;
         }
-      }
-      setStudySets(loadedStudySets);
+      });
+
+      const results = await Promise.allSettled(loadPromises);
+      results.forEach((result) => {
+        if (result.status === 'fulfilled' && result.value) {
+          loadedStudySets.push(result.value);
+        }
+      });      setStudySets(loadedStudySets);
+      setIsReady(true); // Mark as ready when study sets are loaded
+      lastLoadTimeRef.current = Date.now(); // Record load time
     } catch (err) {
       console.error("Failed to load study sets:", err);
-      setError("Failed to load study sets from server.");
-    } finally {
+      setError("Failed to load study sets from server.");    } finally {
       setLoading(false);
     }
-  }, [currentUser]); // Added currentUser as a dependency
-
+  }, [currentUser]); // Only depend on currentUser to avoid infinite loops
   // Initialize on mount
   useEffect(() => {
-    loadStudySets();
-  }, [loadStudySets, authLoading]);
-
-  // Get study set by ID (from loaded static sets)
+    if (!authLoading) {
+      loadStudySets();
+    }
+  }, [loadStudySets, authLoading]);// Get study set by ID (from loaded static sets)
   const getStudySet = useCallback(
     (id) => {
       return studySets.find((set) => set.id === id) || null;
@@ -258,12 +312,12 @@ export const useStudySets = () => {
   const clearError = useCallback(() => {
     setError(null);
   }, []);
-
   return {
     // State
     studySets,
     loading,
     error,
+    isReady,
 
     // Actions
     getStudySet,
