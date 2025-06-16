@@ -1,0 +1,26 @@
+services:
+  fiszki-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fiszki-app
+    ports:
+      - "3001:3000"
+    environment:
+      - NODE_ENV=production
+    volumes:
+      # Mount the private directory for persistent data
+      - ./private:/app/private
+    networks:
+      - fiszki-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  fiszki-network:
+    driver: bridge
