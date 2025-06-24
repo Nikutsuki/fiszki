@@ -306,12 +306,12 @@ export const useStudySets = () => {
         null,
       ),
     };
-  }, [studySets, currentUser]); // Add currentUser as a dependency
+  }, [studySets]); // Only studySets is needed
 
   // Clear error
   const clearError = useCallback(() => {
     setError(null);
-  }, []);
+  }, []); // No dependencies needed
   return {
     // State
     studySets,

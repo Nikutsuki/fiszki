@@ -513,7 +513,7 @@ const FlashcardInterface = ({
               <span>← Know it</span>
             </div>
             <div className="flex items-center space-x-2 opacity-75">
-              <span>Don't know →</span>
+              <span>Don&apos;t know →</span>
               <div className="w-6 h-6 bg-red-100 dark:bg-red-900/50 rounded-full flex items-center justify-center">
                 <svg
                   className="w-3 h-3 text-red-600 dark:text-red-400"
@@ -704,7 +704,7 @@ const FlashcardInterface = ({
                   clipRule="evenodd"
                 />
               </svg>
-              <span>Don't know</span>
+              <span>Don&apos;t know</span>
             </button>
           </div>
         </div>
