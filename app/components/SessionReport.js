@@ -293,46 +293,73 @@ const SessionReport = ({
                   {question.question}
                 </p>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
-                  {question.answers.map((answer, answerIndex) => (
-                    <div
-                      key={answerIndex}
-                      className={`p-2 rounded border ${
-                        question.correctIndices
-                          ? question.correctIndices.includes(answerIndex)
-                            ? "border-green-300 dark:border-green-600 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200"
-                            : question.userAnswer === answerIndex
-                              ? "border-red-300 dark:border-red-600 bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200"
-                              : "border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
-                          : answerIndex === question.correctIndex
-                            ? "border-green-300 dark:border-green-600 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200"
-                            : question.userAnswer === answerIndex
-                              ? "border-red-300 dark:border-red-600 bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200"
-                              : "border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
-                      }`}
-                    >
-                      <span className="font-medium">
-                        {String.fromCharCode(65 + answerIndex)}:
-                      </span>{" "}
-                      {answer}
-                      {(question.correctIndices
-                        ? question.correctIndices.includes(answerIndex)
-                        : answerIndex === question.correctIndex) && (
-                        <span className="ml-2 text-green-600 dark:text-green-400 font-bold">
-                          ✓ Correct
-                        </span>
-                      )}
-                      {question.userAnswer === answerIndex &&
-                        !(question.correctIndices
-                          ? question.correctIndices.includes(answerIndex)
-                          : answerIndex === question.correctIndex) && (
-                          <span className="ml-2 text-red-600 dark:text-red-400 font-bold">
-                            ✗ Your Answer
-                          </span>
-                        )}
+                {question.type === "flashcard" ? (
+                  // Flashcard answer display
+                  <div className="space-y-2">
+                    <div className="p-3 rounded border border-green-300 dark:border-green-600 bg-green-100 dark:bg-green-900/30">
+                      <span className="font-medium text-green-800 dark:text-green-200">
+                        Correct Answer:
+                      </span>
+                      <p className="text-green-700 dark:text-green-300 mt-1">
+                        {question.answer}
+                      </p>
                     </div>
-                  ))}
-                </div>
+                    <div className="p-3 rounded border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700">
+                      <span className="font-medium text-gray-800 dark:text-gray-200">
+                        Your Response:
+                      </span>
+                      <p className="text-gray-700 dark:text-gray-300 mt-1">
+                        {question.userAnswer === "known" ||
+                        question.userAnswer === 1
+                          ? "✓ I know it"
+                          : "✗ I don't know it"}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  // Multiple choice answer display
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                    {question.answers &&
+                      question.answers.map((answer, answerIndex) => (
+                        <div
+                          key={answerIndex}
+                          className={`p-2 rounded border ${
+                            question.correctIndices
+                              ? question.correctIndices.includes(answerIndex)
+                                ? "border-green-300 dark:border-green-600 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200"
+                                : question.userAnswer === answerIndex
+                                  ? "border-red-300 dark:border-red-600 bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200"
+                                  : "border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
+                              : answerIndex === question.correctIndex
+                                ? "border-green-300 dark:border-green-600 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200"
+                                : question.userAnswer === answerIndex
+                                  ? "border-red-300 dark:border-red-600 bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200"
+                                  : "border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
+                          }`}
+                        >
+                          <span className="font-medium">
+                            {String.fromCharCode(65 + answerIndex)}:
+                          </span>{" "}
+                          {answer}
+                          {(question.correctIndices
+                            ? question.correctIndices.includes(answerIndex)
+                            : answerIndex === question.correctIndex) && (
+                            <span className="ml-2 text-green-600 dark:text-green-400 font-bold">
+                              ✓ Correct
+                            </span>
+                          )}
+                          {question.userAnswer === answerIndex &&
+                            !(question.correctIndices
+                              ? question.correctIndices.includes(answerIndex)
+                              : answerIndex === question.correctIndex) && (
+                              <span className="ml-2 text-red-600 dark:text-red-400 font-bold">
+                                ✗ Your Answer
+                              </span>
+                            )}
+                        </div>
+                      ))}
+                  </div>
+                )}
               </div>
             ))}
           </div>

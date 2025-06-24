@@ -8,6 +8,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Navigation from "../../components/Navigation.js";
 import QuizInterface from "../../components/QuizInterface.js";
+import FlashcardInterface from "../../components/FlashcardInterface.js";
 import useStudySets from "../../hooks/useStudySets.js";
 import useSessions from "../../hooks/useSessions.js";
 import { useAuth } from "../../hooks/useAuth.js";
@@ -37,16 +38,61 @@ export default function StudySession() {
   });
   const [showOptions, setShowOptions] = useState(true);
   const [isStarting, setIsStarting] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const [isFlashcardMode, setIsFlashcardMode] = useState(false);
+
+  // Retry function for loading study set
+  const retryLoadStudySet = useCallback(async () => {
+    setRetryCount((prev) => prev + 1);
+    setError(null);
+    setLoading(true);
+
+    try {
+      // Force reload of study sets from server
+      await loadStudySets(true);
+
+      // Try to get the study set again after reload
+      setTimeout(() => {
+        const foundStudySet = getStudySet(params.id);
+        if (foundStudySet) {
+          setStudySet(foundStudySet);
+          setError(null);
+        } else {
+          setError("Study set not found");
+        }
+        setLoading(false);
+      }, 100);
+    } catch (err) {
+      console.error("Retry failed:", err);
+      setError("Failed to reload study sets");
+      setLoading(false);
+    }
+  }, [params.id, getStudySet, loadStudySets]);
+
   // Load study set
   useEffect(() => {
-    if (!params.id) {
-      setError("No study set ID provided");
-      setLoading(false);
-      return;
-    }
+    // Only try to load study set when both auth and study sets are ready
+    if (params.id && !authLoading && currentUser && studySetsReady) {
+      const foundStudySet = getStudySet(params.id);
 
-    // Wait for authentication and study sets to load
-    if (authLoading || studySetsLoading) {
+      if (foundStudySet) {
+        setStudySet(foundStudySet);
+
+        // Detect if this is a flashcard study set
+        const hasFlashcards = foundStudySet.questions.some(
+          (q) => q.type === "flashcard",
+        );
+        setIsFlashcardMode(hasFlashcards);
+
+        setError(null); // Clear any previous errors
+        setLoading(false);
+      } else {
+        // Set error immediately when study sets are ready but study set not found
+        setError("Study set not found");
+        setLoading(false);
+      }
+    } else if (authLoading || studySetsLoading || !studySetsReady) {
+      // Show loading when auth is loading, study sets are loading, or study sets aren't ready yet
       setLoading(true);
       return;
     }
@@ -302,27 +348,29 @@ export default function StudySession() {
                   />
                 </div>
 
-                <div className="flex items-center justify-between">
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">
-                      Shuffle Answers
-                    </label>
-                    <p className="text-sm text-gray-500">
-                      Randomize answer order for each question
-                    </p>
+                {!isFlashcardMode && (
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">
+                        Shuffle Answers
+                      </label>
+                      <p className="text-sm text-gray-500">
+                        Randomize answer order for each question
+                      </p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={sessionOptions.shuffleAnswers}
+                      onChange={(e) =>
+                        setSessionOptions({
+                          ...sessionOptions,
+                          shuffleAnswers: e.target.checked,
+                        })
+                      }
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
                   </div>
-                  <input
-                    type="checkbox"
-                    checked={sessionOptions.shuffleAnswers}
-                    onChange={(e) =>
-                      setSessionOptions({
-                        ...sessionOptions,
-                        shuffleAnswers: e.target.checked,
-                      })
-                    }
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                  />
-                </div>
+                )}
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -403,8 +451,10 @@ export default function StudySession() {
                     </>
                   ) : (
                     <>
-                      <span className="mr-2">🎓</span>
-                      Start Study Session
+                      <span className="mr-2">
+                        {isFlashcardMode ? "🃏" : "🎓"}
+                      </span>
+                      Start {isFlashcardMode ? "Flashcard" : "Study"} Session
                     </>
                   )}
                 </button>
@@ -420,14 +470,25 @@ export default function StudySession() {
           </div>
         )}
 
-        {/* Show quiz interface during session */}
+        {/* Show appropriate interface during session */}
         {currentSession && !showOptions && (
-          <QuizInterface
-            session={currentSession}
-            onAnswerQuestion={handleAnswerQuestion}
-            onCompleteSession={handleCompleteSession}
-            onAbandonSession={handleAbandonSession}
-          />
+          <>
+            {isFlashcardMode ? (
+              <FlashcardInterface
+                session={currentSession}
+                onAnswerQuestion={handleAnswerQuestion}
+                onCompleteSession={handleCompleteSession}
+                onAbandonSession={handleAbandonSession}
+              />
+            ) : (
+              <QuizInterface
+                session={currentSession}
+                onAnswerQuestion={handleAnswerQuestion}
+                onCompleteSession={handleCompleteSession}
+                onAbandonSession={handleAbandonSession}
+              />
+            )}
+          </>
         )}
       </div>
     </div>

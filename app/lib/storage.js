@@ -220,6 +220,196 @@ export const sessionStorage = {
 };
 
 /**
+ * Flashcard Progress Management
+ */
+export const flashcardStorage = {
+  getAll: () => {
+    return storage.get(STORAGE_KEYS.FLASHCARD_PROGRESS, {});
+  },
+
+  getByStudySet: (studySetId) => {
+    const allProgress = flashcardStorage.getAll();
+    return allProgress[studySetId] || {};
+  },
+
+  getCardProgress: (studySetId, cardId) => {
+    const studySetProgress = flashcardStorage.getByStudySet(studySetId);
+    return (
+      studySetProgress[cardId] || {
+        timesReviewed: 0,
+        timesCorrect: 0,
+        difficulty: 0.5, // 0 = easy, 1 = hard
+        lastReviewed: null,
+        nextReview: null,
+        consecutiveCorrect: 0,
+        consecutiveIncorrect: 0,
+        easeFactor: 2.5, // For spaced repetition
+        interval: 1, // Days until next review
+      }
+    );
+  },
+
+  updateCardProgress: (studySetId, cardId, isCorrect, responseTime = 0) => {
+    const allProgress = flashcardStorage.getAll();
+
+    if (!allProgress[studySetId]) {
+      allProgress[studySetId] = {};
+    }
+
+    const currentProgress = flashcardStorage.getCardProgress(
+      studySetId,
+      cardId,
+    );
+    const now = new Date().toISOString();
+
+    // Update basic stats
+    currentProgress.timesReviewed += 1;
+    currentProgress.lastReviewed = now;
+
+    if (isCorrect) {
+      currentProgress.timesCorrect += 1;
+      currentProgress.consecutiveCorrect += 1;
+      currentProgress.consecutiveIncorrect = 0;
+
+      // Make card easier over time if consistently correct
+      if (currentProgress.consecutiveCorrect >= 3) {
+        currentProgress.difficulty = Math.max(
+          0,
+          currentProgress.difficulty - 0.1,
+        );
+      }
+    } else {
+      currentProgress.consecutiveCorrect = 0;
+      currentProgress.consecutiveIncorrect += 1;
+
+      // Make card harder if getting wrong
+      currentProgress.difficulty = Math.min(
+        1,
+        currentProgress.difficulty + 0.2,
+      );
+    }
+
+    // Calculate spaced repetition schedule
+    const scheduleResult = calculateSpacedRepetition(
+      currentProgress,
+      isCorrect,
+      responseTime,
+    );
+    currentProgress.easeFactor = scheduleResult.easeFactor;
+    currentProgress.interval = scheduleResult.interval;
+
+    // Set next review date
+    const nextReviewDate = new Date();
+    nextReviewDate.setDate(nextReviewDate.getDate() + scheduleResult.interval);
+    currentProgress.nextReview = nextReviewDate.toISOString();
+
+    // Save updated progress
+    allProgress[studySetId][cardId] = currentProgress;
+    return storage.set(STORAGE_KEYS.FLASHCARD_PROGRESS, allProgress);
+  },
+
+  getCardsForReview: (studySetId, limit = null) => {
+    const studySetProgress = flashcardStorage.getByStudySet(studySetId);
+    const now = new Date();
+
+    const cardsForReview = Object.entries(studySetProgress)
+      .filter(([cardId, progress]) => {
+        // Include cards that haven't been reviewed or are due for review
+        return !progress.nextReview || new Date(progress.nextReview) <= now;
+      })
+      .sort(([, a], [, b]) => {
+        // Prioritize by difficulty (harder cards first) and last reviewed
+        if (a.difficulty !== b.difficulty) {
+          return b.difficulty - a.difficulty;
+        }
+        // Then by longest time since last review
+        const aLastReviewed = a.lastReviewed
+          ? new Date(a.lastReviewed)
+          : new Date(0);
+        const bLastReviewed = b.lastReviewed
+          ? new Date(b.lastReviewed)
+          : new Date(0);
+        return aLastReviewed - bLastReviewed;
+      })
+      .map(([cardId]) => cardId);
+
+    return limit ? cardsForReview.slice(0, limit) : cardsForReview;
+  },
+
+  getStudySetStats: (studySetId) => {
+    const studySetProgress = flashcardStorage.getByStudySet(studySetId);
+    const cardProgresses = Object.values(studySetProgress);
+
+    if (cardProgresses.length === 0) {
+      return {
+        totalCards: 0,
+        reviewedCards: 0,
+        masteredCards: 0,
+        averageDifficulty: 0,
+        dueForReview: 0,
+      };
+    }
+
+    const reviewedCards = cardProgresses.filter((p) => p.timesReviewed > 0);
+    const masteredCards = cardProgresses.filter(
+      (p) => p.consecutiveCorrect >= 5 && p.difficulty < 0.3,
+    );
+    const now = new Date();
+    const dueForReview = cardProgresses.filter(
+      (p) => !p.nextReview || new Date(p.nextReview) <= now,
+    );
+
+    return {
+      totalCards: cardProgresses.length,
+      reviewedCards: reviewedCards.length,
+      masteredCards: masteredCards.length,
+      averageDifficulty:
+        reviewedCards.length > 0
+          ? reviewedCards.reduce((sum, p) => sum + p.difficulty, 0) /
+            reviewedCards.length
+          : 0,
+      dueForReview: dueForReview.length,
+    };
+  },
+};
+
+/**
+ * Calculate spaced repetition schedule using modified SM-2 algorithm
+ */
+const calculateSpacedRepetition = (cardProgress, isCorrect, responseTime) => {
+  let { easeFactor, interval } = cardProgress;
+
+  if (isCorrect) {
+    // Successful recall
+    if (interval === 1) {
+      interval = 6; // First successful recall -> 6 days
+    } else {
+      interval = Math.round(interval * easeFactor);
+    }
+
+    // Adjust ease factor based on response quality
+    // Assume faster response indicates better retention
+    const responseQuality =
+      responseTime > 0
+        ? Math.max(0, Math.min(5, 5 - responseTime / 5)) // 0-5 scale
+        : 3; // Default quality
+
+    easeFactor =
+      easeFactor +
+      (0.1 - (5 - responseQuality) * (0.08 + (5 - responseQuality) * 0.02));
+  } else {
+    // Failed recall
+    interval = 1; // Reset to 1 day
+    easeFactor = Math.max(1.3, easeFactor - 0.2);
+  }
+
+  // Ensure ease factor stays within reasonable bounds
+  easeFactor = Math.max(1.3, Math.min(2.5, easeFactor));
+
+  return { easeFactor, interval };
+};
+
+/**
  * App Settings Management
  */
 export const settingsStorage = {
@@ -300,6 +490,9 @@ export const initializeStorage = () => {
 
   // Initialize settings if they don't exist
   settingsStorage.get();
+
+  // Initialize flashcard progress if it doesn't exist
+  flashcardStorage.getAll();
 
   // Cleanup old sessions (keep last 30 days)
   sessionStorage.cleanup();

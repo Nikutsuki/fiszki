@@ -71,9 +71,6 @@ export default function LoginPage() {
             <h2 className="mt-6 text-center text-3xl font-bold text-gray-900 dark:text-gray-100">
               Sign in to your account
             </h2>
-            <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
-              Users are defined in users.json file
-            </p>
           </div>
 
           <form className="mt-8 space-y-6" onSubmit={handleSubmit}>

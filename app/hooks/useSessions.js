@@ -113,11 +113,31 @@ export const useSessions = () => {
 
       // Create session questions
       session.questions = questions.map((question, index) => {
+        // Handle flashcard questions differently
+        if (question.type === "flashcard") {
+          return {
+            questionId: question.id,
+            question: question.question,
+            answer: question.answer,
+            answers: [], // Empty for flashcards
+            correctIndex: 0,
+            correctIndices: null,
+            type: "flashcard",
+            questionNumber: index + 1,
+            userAnswer: null,
+            isCorrect: null,
+            responseTime: 0,
+            answeredAt: null,
+            startTime: null,
+          };
+        }
+
+        // Handle multiple choice questions
         let answers = [...question.answers];
         let correctIndex = question.correctIndex;
         let correctIndices = question.correctIndices;
 
-        // Shuffle answers if requested
+        // Shuffle answers if requested (only for multiple choice)
         if (shuffleAnswers) {
           if (correctIndices) {
             // Handle multiple correct answers
@@ -186,12 +206,20 @@ export const useSessions = () => {
         const updatedSession = { ...currentSession };
         const question = updatedSession.questions[questionIndex];
 
-        // Record answer
-        question.userAnswer = answerIndex;
-        // Check if answer is correct (handle multiple correct answers)
-        question.isCorrect = question.correctIndices
-          ? question.correctIndices.includes(answerIndex)
-          : answerIndex === question.correctIndex;
+        // Handle flashcard questions differently
+        if (question.type === "flashcard") {
+          // For flashcards, answerIndex is 1 for "known" and 0 for "unknown"
+          question.userAnswer = answerIndex === 1 ? "known" : "unknown";
+          question.isCorrect = answerIndex === 1; // Consider "known" as correct
+        } else {
+          // Handle multiple choice questions
+          question.userAnswer = answerIndex;
+          // Check if answer is correct (handle multiple correct answers)
+          question.isCorrect = question.correctIndices
+            ? question.correctIndices.includes(answerIndex)
+            : answerIndex === question.correctIndex;
+        }
+
         question.answeredAt = new Date().toISOString();
 
         // Calculate response time (if timing is being tracked)
@@ -260,18 +288,26 @@ export const useSessions = () => {
       // Save completed session locally
       const localSaveSuccess = sessionStorage.save(updatedSession);
 
-      if (localSaveSuccess) {        // Update user progress in users.json
+      if (localSaveSuccess) {
+        // Update user progress in users.json
         try {
-          console.log('Updating progress for study set:', updatedSession.studySetId, 'with stats:', sessionStats);
+          console.log(
+            "Updating progress for study set:",
+            updatedSession.studySetId,
+            "with stats:",
+            sessionStats,
+          );
           const progressUpdateSuccess = await updateProgress(
             updatedSession.studySetId,
-            sessionStats
+            sessionStats,
           );
 
           if (progressUpdateSuccess) {
-            console.log('Progress updated successfully');
+            console.log("Progress updated successfully");
           } else {
-            console.warn("Failed to update user progress, but session was saved locally");
+            console.warn(
+              "Failed to update user progress, but session was saved locally",
+            );
           }
         } catch (progressError) {
           console.error("Error updating progress:", progressError);
