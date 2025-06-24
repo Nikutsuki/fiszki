@@ -15,7 +15,12 @@ import { useAuth } from "../../hooks/useAuth.js";
 export default function StudySession() {
   const router = useRouter();
   const params = useParams();
-  const { getStudySet, loading: studySetsLoading, isReady: studySetsReady, loadStudySets } = useStudySets();
+  const {
+    getStudySet,
+    loading: studySetsLoading,
+    isReady: studySetsReady,
+    loadStudySets,
+  } = useStudySets();
   const {
     currentSession,
     startSession,
@@ -41,14 +46,14 @@ export default function StudySession() {
 
   // Retry function for loading study set
   const retryLoadStudySet = useCallback(async () => {
-    setRetryCount(prev => prev + 1);
+    setRetryCount((prev) => prev + 1);
     setError(null);
     setLoading(true);
-    
+
     try {
       // Force reload of study sets from server
       await loadStudySets(true);
-      
+
       // Try to get the study set again after reload
       setTimeout(() => {
         const foundStudySet = getStudySet(params.id);
@@ -72,7 +77,7 @@ export default function StudySession() {
     // Only try to load study set when both auth and study sets are ready
     if (params.id && !authLoading && currentUser && studySetsReady) {
       const foundStudySet = getStudySet(params.id);
-      
+
       if (foundStudySet) {
         setStudySet(foundStudySet);
         setError(null); // Clear any previous errors
@@ -91,7 +96,14 @@ export default function StudySession() {
       setError("Please log in to access study sets");
       setLoading(false);
     }
-  }, [params.id, getStudySet, studySetsLoading, authLoading, currentUser, studySetsReady]);
+  }, [
+    params.id,
+    getStudySet,
+    studySetsLoading,
+    authLoading,
+    currentUser,
+    studySetsReady,
+  ]);
 
   const handleStartSession = async () => {
     if (!studySet || isStarting) return;
