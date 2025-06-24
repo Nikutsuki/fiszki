@@ -12,7 +12,7 @@ export default function Home() {
   const { currentUser, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  const { studySets, loading, error, clearError, isReady: studySetsReady } = useStudySets();
+  const { studySets, loading, error, clearError } = useStudySets();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [filteredSets, setFilteredSets] = useState([]);
@@ -27,28 +27,25 @@ export default function Home() {
   useEffect(() => {
     initializeStorage();
   }, []);
-
   // Update filtered sets when studySets or search changes
   useEffect(() => {
     let sets = studySets;
     if (searchQuery) {
       const lowerQuery = searchQuery.toLowerCase();
-      sets = studySets.filter(
-        (set) =>
-          set.name.toLowerCase().includes(lowerQuery) ||
-          set.description.toLowerCase().includes(lowerQuery),
+      sets = studySets.filter((set) =>
+        set.name.toLowerCase().includes(lowerQuery),
       );
     }
     setFilteredSets(sets);
   }, [studySets, searchQuery]);
 
-  if (loading || authLoading || !studySetsReady) {
+  if (loading || authLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+      <div className="min-h-screen bg-gray-50">
         <Navigation />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 dark:border-blue-400"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
           </div>
         </div>
       </div>
@@ -60,16 +57,16 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+    <div className="min-h-screen bg-gray-50">
       <Navigation />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
             Your Study Sets
           </h1>
-          <p className="text-gray-600 dark:text-gray-400">
+          <p className="text-gray-600">
             Select a study set to begin your session.
           </p>
         </div>
@@ -79,7 +76,7 @@ export default function Home() {
             <div className="relative max-w-md">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <svg
-                  className="h-5 w-5 text-gray-400 dark:text-gray-500"
+                  className="h-5 w-5 text-gray-400"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -94,7 +91,7 @@ export default function Home() {
               </div>
               <input
                 type="text"
-                className="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md leading-5 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:placeholder-gray-400 dark:focus:placeholder-gray-500 focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 transition-colors"
+                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="Search study sets..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -105,7 +102,7 @@ export default function Home() {
                   onClick={() => setSearchQuery("")}
                 >
                   <svg
-                    className="h-5 w-5 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400"
+                    className="h-5 w-5 text-gray-400 hover:text-gray-600"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -124,11 +121,11 @@ export default function Home() {
         )}
         {/* Error Display */}
         {error && (
-          <div className="mb-6 bg-red-50 dark:bg-red-900/50 border border-red-200 dark:border-red-800 rounded-md p-4">
+          <div className="mb-6 bg-red-50 border border-red-200 rounded-md p-4">
             <div className="flex">
               <div className="flex-shrink-0">
                 <svg
-                  className="h-5 w-5 text-red-400 dark:text-red-300"
+                  className="h-5 w-5 text-red-400"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -142,12 +139,10 @@ export default function Home() {
                 </svg>
               </div>
               <div className="ml-3">
-                <p className="text-sm text-red-700 dark:text-red-300">
-                  {error}
-                </p>
+                <p className="text-sm text-red-700">{error}</p>
                 <button
                   onClick={clearError}
-                  className="mt-2 text-sm text-red-600 dark:text-red-400 hover:text-red-500 dark:hover:text-red-300 underline"
+                  className="mt-2 text-sm text-red-600 hover:text-red-500 underline"
                 >
                   Dismiss
                 </button>
@@ -166,38 +161,38 @@ export default function Home() {
               />
             ))}
           </div>
-        ) : studySets.length === 0 && studySetsReady ? (
-          // Empty State - only show when study sets are ready and there are no study sets
+        ) : studySets.length === 0 ? (
+          // Empty State
           <div className="text-center py-12">
             <div className="mx-auto h-24 w-24 text-6xl mb-4">📚</div>
-            <h3 className="text-xl font-medium text-gray-900 dark:text-gray-100 mb-2">
+            <h3 className="text-xl font-medium text-gray-900 mb-2">
               No study sets found
             </h3>
-            <p className="text-gray-500 dark:text-gray-400 mb-6">
-              Place your CSV files in the `private/study_sets` directory to see
+            <p className="text-gray-500 mb-6">
+              Place your CSV files in the `public/study_sets` directory to see
               them here.
             </p>
           </div>
-        ) : studySets.length > 0 && studySetsReady && searchQuery ? (
-          // No Search Results - only show when we have study sets, they're ready, and we're searching
+        ) : (
+          // No Search Results
           <div className="text-center py-12">
             <div className="mx-auto h-24 w-24 text-6xl mb-4">🔍</div>
-            <h3 className="text-xl font-medium text-gray-900 dark:text-gray-100 mb-2">
+            <h3 className="text-xl font-medium text-gray-900 mb-2">
               No results found
             </h3>
-            <p className="text-gray-500 dark:text-gray-400 mb-6">
+            <p className="text-gray-500 mb-6">
               Try adjusting your search query.
             </p>
             <div className="space-y-2">
               <button
                 onClick={() => setSearchQuery("")}
-                className="block mx-auto px-4 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300"
+                className="block mx-auto px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-500"
               >
                 Clear search
               </button>
             </div>
           </div>
-        ) : null}
+        )}
       </div>
     </div>
   );

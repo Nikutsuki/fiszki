@@ -4,7 +4,7 @@
 
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Navigation from "../../components/Navigation.js";
 import QuizInterface from "../../components/QuizInterface.js";
@@ -15,7 +15,7 @@ import { useAuth } from "../../hooks/useAuth.js";
 export default function StudySession() {
   const router = useRouter();
   const params = useParams();
-  const { getStudySet, loading: studySetsLoading, isReady: studySetsReady, loadStudySets } = useStudySets();
+  const { getStudySet, loading: studySetsLoading, loadStudySets } = useStudySets();
   const {
     currentSession,
     startSession,
@@ -37,61 +37,42 @@ export default function StudySession() {
   });
   const [showOptions, setShowOptions] = useState(true);
   const [isStarting, setIsStarting] = useState(false);
-  const [retryCount, setRetryCount] = useState(0);
-
-  // Retry function for loading study set
-  const retryLoadStudySet = useCallback(async () => {
-    setRetryCount(prev => prev + 1);
-    setError(null);
-    setLoading(true);
-    
-    try {
-      // Force reload of study sets from server
-      await loadStudySets(true);
-      
-      // Try to get the study set again after reload
-      setTimeout(() => {
-        const foundStudySet = getStudySet(params.id);
-        if (foundStudySet) {
-          setStudySet(foundStudySet);
-          setError(null);
-        } else {
-          setError("Study set not found");
-        }
-        setLoading(false);
-      }, 100);
-    } catch (err) {
-      console.error("Retry failed:", err);
-      setError("Failed to reload study sets");
-      setLoading(false);
-    }
-  }, [params.id, getStudySet, loadStudySets]);
-
   // Load study set
   useEffect(() => {
-    // Only try to load study set when both auth and study sets are ready
-    if (params.id && !authLoading && currentUser && studySetsReady) {
-      const foundStudySet = getStudySet(params.id);
-      
-      if (foundStudySet) {
-        setStudySet(foundStudySet);
-        setError(null); // Clear any previous errors
-        setLoading(false);
-      } else {
-        // Set error immediately when study sets are ready but study set not found
-        setError("Study set not found");
-        setLoading(false);
-      }
-    } else if (authLoading || studySetsLoading || !studySetsReady) {
-      // Show loading when auth is loading, study sets are loading, or study sets aren't ready yet
+    if (!params.id) {
+      setError("No study set ID provided");
+      setLoading(false);
+      return;
+    }
+
+    // Wait for authentication and study sets to load
+    if (authLoading || studySetsLoading) {
       setLoading(true);
-      setError(null); // Clear errors when loading
-    } else if (!currentUser) {
-      // Handle case where user is not authenticated
+      return;
+    }
+
+    // Check if user is authenticated
+    if (!currentUser) {
       setError("Please log in to access study sets");
       setLoading(false);
+      return;
     }
-  }, [params.id, getStudySet, studySetsLoading, authLoading, currentUser, studySetsReady]);
+
+    // Try to find the study set
+    const foundStudySet = getStudySet(params.id);
+    if (foundStudySet) {
+      setStudySet(foundStudySet);
+      setError(null);
+    } else {
+      // Check if study sets are still loading or empty
+      if (studySetsLoading) {
+        setLoading(true);
+        return;
+      }
+      setError("Study set not found. Please check the URL or try refreshing the page.");
+    }
+    setLoading(false);
+  }, [params.id, getStudySet, studySetsLoading, authLoading, currentUser]);
 
   const handleStartSession = async () => {
     if (!studySet || isStarting) return;
@@ -154,13 +135,13 @@ export default function StudySession() {
     }
   };
 
-  if (loading || sessionsLoading || authLoading || !studySetsReady) {
+  if (loading || sessionsLoading || authLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+      <div className="min-h-screen bg-gray-50">
         <Navigation />
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 dark:border-blue-400"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
           </div>
         </div>
       </div>
@@ -169,14 +150,14 @@ export default function StudySession() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+      <div className="min-h-screen bg-gray-50">
         <Navigation />
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="bg-red-50 dark:bg-red-900/50 border border-red-200 dark:border-red-800 rounded-md p-6">
+          <div className="bg-red-50 border border-red-200 rounded-md p-6">
             <div className="flex">
               <div className="flex-shrink-0">
                 <svg
-                  className="h-5 w-5 text-red-400 dark:text-red-300"
+                  className="h-5 w-5 text-red-400"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -188,24 +169,39 @@ export default function StudySession() {
                     d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
                   />
                 </svg>
-              </div>
-              <div className="ml-3">
-                <h3 className="text-sm font-medium text-red-800 dark:text-red-200">
-                  Error
-                </h3>
-                <p className="mt-1 text-sm text-red-700 dark:text-red-300">
-                  {error}
-                </p>
-                <div className="mt-4 space-x-2">
+              </div>              <div className="ml-3">
+                <h3 className="text-sm font-medium text-red-800">Error</h3>
+                <p className="mt-1 text-sm text-red-700">{error}</p>
+                {error === "Study set not found. Please check the URL or try refreshing the page." && (
+                  <div className="mt-2 text-sm text-red-600">
+                    <p>Possible solutions:</p>
+                    <ul className="list-disc list-inside mt-1">
+                      <li>Check if the URL is correct</li>
+                      <li>Refresh the page to reload study sets</li>
+                      <li>Make sure you&apos;re logged in</li>
+                      <li>Contact support if the problem persists</li>
+                    </ul>
+                  </div>
+                )}                <div className="mt-4 space-x-3">
                   <button
-                    onClick={retryLoadStudySet}
-                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600 transition-colors"
+                    onClick={() => {
+                      setError(null);
+                      setLoading(true);
+                      loadStudySets();
+                    }}
+                    className="inline-flex items-center px-4 py-2 border border-red-300 text-sm font-medium rounded-md text-red-700 bg-red-50 hover:bg-red-100"
                   >
-                    Retry
+                    Retry Loading
+                  </button>
+                  <button
+                    onClick={() => window.location.reload()}
+                    className="inline-flex items-center px-4 py-2 border border-red-300 text-sm font-medium rounded-md text-red-700 bg-red-50 hover:bg-red-100"
+                  >
+                    Refresh Page
                   </button>
                   <button
                     onClick={() => router.push("/")}
-                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-600 transition-colors"
+                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700"
                   >
                     Return Home
                   </button>
@@ -220,20 +216,20 @@ export default function StudySession() {
 
   if (!studySet) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+      <div className="min-h-screen bg-gray-50">
         <Navigation />
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="text-center py-12">
-            <h3 className="text-xl font-medium text-gray-900 dark:text-gray-100 mb-2">
+            <h3 className="text-xl font-medium text-gray-900 mb-2">
               Study set not found
             </h3>
-            <p className="text-gray-500 dark:text-gray-400 mb-6">
+            <p className="text-gray-500 mb-6">
               The study set you&apos;re looking for doesn&apos;t exist or has
               been removed.
             </p>
             <button
               onClick={() => router.push("/")}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600 transition-colors"
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
             >
               Return Home
             </button>
@@ -244,64 +240,52 @@ export default function StudySession() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+    <div className="min-h-screen bg-gray-50">
       <Navigation />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Show session options before starting */}
         {showOptions && !currentSession && (
-          <div className="max-w-2xl mx-auto">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+          <div className="max-w-2xl mx-auto">            <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+              <h1 className="text-2xl font-bold text-gray-900 mb-2">
                 {studySet.name}
               </h1>
-              {studySet.description && (
-                <p className="text-gray-600 dark:text-gray-400 mb-4">
-                  {studySet.description}
-                </p>
-              )}
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                <div className="bg-blue-50 dark:bg-blue-900/50 p-4 rounded-lg">
-                  <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <div className="text-2xl font-bold text-blue-600">
                     {studySet.questions.length}
                   </div>
-                  <div className="text-sm text-gray-600 dark:text-gray-300">
-                    Questions
-                  </div>
+                  <div className="text-sm text-gray-600">Questions</div>
                 </div>
-                <div className="bg-green-50 dark:bg-green-900/50 p-4 rounded-lg">
-                  <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+                <div className="bg-green-50 p-4 rounded-lg">
+                  <div className="text-2xl font-bold text-green-600">
                     {studySet.stats.averageScore}%
                   </div>
-                  <div className="text-sm text-gray-600 dark:text-gray-300">
-                    Avg Score
-                  </div>
+                  <div className="text-sm text-gray-600">Avg Score</div>
                 </div>
-                <div className="bg-purple-50 dark:bg-purple-900/50 p-4 rounded-lg">
-                  <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+                <div className="bg-purple-50 p-4 rounded-lg">
+                  <div className="text-2xl font-bold text-purple-600">
                     {studySet.stats.totalSessions}
                   </div>
-                  <div className="text-sm text-gray-600 dark:text-gray-300">
-                    Sessions
-                  </div>
+                  <div className="text-sm text-gray-600">Sessions</div>
                 </div>
               </div>
             </div>
 
             {/* Session Options */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+            <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">
                 Session Options
               </h2>
 
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <label className="text-sm font-medium text-gray-700">
                       Shuffle Questions
                     </label>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                    <p className="text-sm text-gray-500">
                       Present questions in random order
                     </p>
                   </div>
@@ -314,16 +298,16 @@ export default function StudySession() {
                         shuffleQuestions: e.target.checked,
                       })
                     }
-                    className="h-4 w-4 text-blue-600 dark:text-blue-500 focus:ring-blue-500 dark:focus:ring-blue-400 border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700"
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                   />
                 </div>
 
                 <div className="flex items-center justify-between">
                   <div>
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <label className="text-sm font-medium text-gray-700">
                       Shuffle Answers
                     </label>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                    <p className="text-sm text-gray-500">
                       Randomize answer order for each question
                     </p>
                   </div>
@@ -336,15 +320,15 @@ export default function StudySession() {
                         shuffleAnswers: e.target.checked,
                       })
                     }
-                    className="h-4 w-4 text-blue-600 dark:text-blue-500 focus:ring-blue-500 dark:focus:ring-blue-400 border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700"
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
                     Question Limit
                   </label>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+                  <p className="text-sm text-gray-500 mb-2">
                     Limit the number of questions (leave empty for all)
                   </p>
                   <input
@@ -360,7 +344,7 @@ export default function StudySession() {
                           : null,
                       })
                     }
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 transition-colors"
+                    className="w-full px-3 text-black py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
                     placeholder={`Max ${studySet.questions.length}`}
                   />
                 </div>
@@ -369,19 +353,17 @@ export default function StudySession() {
 
             {/* Session Error */}
             {sessionError && (
-              <div className="bg-red-50 dark:bg-red-900/50 border border-red-200 dark:border-red-800 rounded-md p-4 mb-6">
-                <p className="text-sm text-red-700 dark:text-red-300">
-                  {sessionError}
-                </p>
+              <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-6">
+                <p className="text-sm text-red-700">{sessionError}</p>
               </div>
             )}
 
             {/* Start Session Button */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+            <div className="bg-white rounded-lg shadow-md p-6">
               <div className="flex justify-between items-center">
                 <button
                   onClick={() => router.push("/")}
-                  className="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+                  className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
                 >
                   ← Back to Study Sets
                 </button>
@@ -394,7 +376,7 @@ export default function StudySession() {
                     (sessionOptions.questionLimit &&
                       sessionOptions.questionLimit < 1)
                   }
-                  className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-blue-500 dark:focus:ring-blue-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isStarting ? (
                     <>
@@ -429,7 +411,7 @@ export default function StudySession() {
               </div>
 
               {studySet.questions.length === 0 && (
-                <p className="mt-4 text-sm text-red-600 dark:text-red-400">
+                <p className="mt-4 text-sm text-red-600">
                   This study set has no questions. Please add questions before
                   starting a session.
                 </p>

@@ -3,10 +3,9 @@
  */
 
 // Study Set structure
-export const createStudySet = (name, description = "") => ({
+export const createStudySet = (name) => ({
   id: generateId(),
   name,
-  description,
   questions: [],
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
