@@ -642,7 +642,7 @@ const FlashcardInterface = ({
                 }}
               >
                 <div className="text-center px-2">
-                  <div className="text-lg sm:text-2xl font-semibold text-blue-900 dark:text-blue-100 mb-4 leading-relaxed break-words">
+                  <div className="text-lg sm:text-sm font-semibold text-blue-900 dark:text-blue-100 mb-4 leading-relaxed break-words">
                     {currentCard.answer}
                   </div>
                   <div className="text-xs sm:text-sm text-blue-600 dark:text-blue-400 flex items-center justify-center space-x-2">
