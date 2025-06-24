@@ -18,20 +18,47 @@ export const createStudySet = (name, description = "") => ({
   },
 });
 
-// Question structure
-export const createQuestion = (question, answers, correctIndex) => ({
+// Question structure - supports both multiple choice and flashcard types
+export const createQuestion = (
+  question,
+  answers,
+  correctIndex,
+  type = "multiple_choice",
+) => ({
   id: generateId(),
   question,
+  type, // "multiple_choice" or "flashcard"
   answers:
-    answers.length === 4
-      ? answers
-      : [...answers, ...Array(4 - answers.length).fill("")],
-  correctIndex,
+    type === "flashcard"
+      ? [answers] // For flashcards, answers is just the single answer string
+      : answers.length === 4
+        ? answers
+        : [...answers, ...Array(4 - answers.length).fill("")],
+  correctIndex: type === "flashcard" ? 0 : correctIndex,
   createdAt: new Date().toISOString(),
   stats: {
     timesAnswered: 0,
     timesCorrect: 0,
     averageResponseTime: 0,
+  },
+});
+
+// Flashcard-specific question structure
+export const createFlashcard = (question, answer) => ({
+  id: generateId(),
+  question,
+  answer,
+  type: "flashcard",
+  createdAt: new Date().toISOString(),
+  stats: {
+    timesAnswered: 0,
+    timesCorrect: 0,
+    averageResponseTime: 0,
+    difficulty: 0.5, // 0 = easy, 1 = hard
+    lastReviewed: null,
+    nextReview: null,
+    consecutiveCorrect: 0,
+    consecutiveIncorrect: 0,
   },
 });
 
@@ -166,7 +193,14 @@ export const calculateSessionStats = (session) => {
   }
 
   const totalQuestions = session.questions.length;
-  const correctAnswers = session.questions.filter((q) => q.isCorrect).length;
+  const correctAnswers = session.questions.filter((q) => {
+    // Handle both flashcard and multiple choice questions
+    if (q.type === "flashcard") {
+      return q.userAnswer === "known" || q.isCorrect === true;
+    }
+    return q.isCorrect === true;
+  }).length;
+
   const score =
     totalQuestions > 0
       ? Math.round((correctAnswers / totalQuestions) * 100)
@@ -214,4 +248,5 @@ export const STORAGE_KEYS = {
   STUDY_SETS: "study_sets",
   SESSIONS: "study_sessions",
   SETTINGS: "app_settings",
+  FLASHCARD_PROGRESS: "flashcard_progress",
 };

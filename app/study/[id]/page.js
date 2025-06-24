@@ -8,6 +8,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Navigation from "../../components/Navigation.js";
 import QuizInterface from "../../components/QuizInterface.js";
+import FlashcardInterface from "../../components/FlashcardInterface.js";
 import useStudySets from "../../hooks/useStudySets.js";
 import useSessions from "../../hooks/useSessions.js";
 import { useAuth } from "../../hooks/useAuth.js";
@@ -43,6 +44,7 @@ export default function StudySession() {
   const [showOptions, setShowOptions] = useState(true);
   const [isStarting, setIsStarting] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+  const [isFlashcardMode, setIsFlashcardMode] = useState(false);
 
   // Retry function for loading study set
   const retryLoadStudySet = useCallback(async () => {
@@ -80,6 +82,13 @@ export default function StudySession() {
 
       if (foundStudySet) {
         setStudySet(foundStudySet);
+
+        // Detect if this is a flashcard study set
+        const hasFlashcards = foundStudySet.questions.some(
+          (q) => q.type === "flashcard",
+        );
+        setIsFlashcardMode(hasFlashcards);
+
         setError(null); // Clear any previous errors
         setLoading(false);
       } else {
@@ -330,27 +339,29 @@ export default function StudySession() {
                   />
                 </div>
 
-                <div className="flex items-center justify-between">
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Shuffle Answers
-                    </label>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Randomize answer order for each question
-                    </p>
+                {!isFlashcardMode && (
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Shuffle Answers
+                      </label>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Randomize answer order for each question
+                      </p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={sessionOptions.shuffleAnswers}
+                      onChange={(e) =>
+                        setSessionOptions({
+                          ...sessionOptions,
+                          shuffleAnswers: e.target.checked,
+                        })
+                      }
+                      className="h-4 w-4 text-blue-600 dark:text-blue-500 focus:ring-blue-500 dark:focus:ring-blue-400 border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700"
+                    />
                   </div>
-                  <input
-                    type="checkbox"
-                    checked={sessionOptions.shuffleAnswers}
-                    onChange={(e) =>
-                      setSessionOptions({
-                        ...sessionOptions,
-                        shuffleAnswers: e.target.checked,
-                      })
-                    }
-                    className="h-4 w-4 text-blue-600 dark:text-blue-500 focus:ring-blue-500 dark:focus:ring-blue-400 border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700"
-                  />
-                </div>
+                )}
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -433,8 +444,10 @@ export default function StudySession() {
                     </>
                   ) : (
                     <>
-                      <span className="mr-2">🎓</span>
-                      Start Study Session
+                      <span className="mr-2">
+                        {isFlashcardMode ? "🃏" : "🎓"}
+                      </span>
+                      Start {isFlashcardMode ? "Flashcard" : "Study"} Session
                     </>
                   )}
                 </button>
@@ -450,14 +463,25 @@ export default function StudySession() {
           </div>
         )}
 
-        {/* Show quiz interface during session */}
+        {/* Show appropriate interface during session */}
         {currentSession && !showOptions && (
-          <QuizInterface
-            session={currentSession}
-            onAnswerQuestion={handleAnswerQuestion}
-            onCompleteSession={handleCompleteSession}
-            onAbandonSession={handleAbandonSession}
-          />
+          <>
+            {isFlashcardMode ? (
+              <FlashcardInterface
+                session={currentSession}
+                onAnswerQuestion={handleAnswerQuestion}
+                onCompleteSession={handleCompleteSession}
+                onAbandonSession={handleAbandonSession}
+              />
+            ) : (
+              <QuizInterface
+                session={currentSession}
+                onAnswerQuestion={handleAnswerQuestion}
+                onCompleteSession={handleCompleteSession}
+                onAbandonSession={handleAbandonSession}
+              />
+            )}
+          </>
         )}
       </div>
     </div>

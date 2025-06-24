@@ -6,12 +6,16 @@
 
 import {
   createQuestion,
+  createFlashcard,
   createStudySet,
   generateIdFromFilename,
 } from "./types.js";
 
 /**
  * Parse CSV content into study set questions
+ * Supports two formats:
+ * - Multiple choice: Question(;)Ans1(;)Ans2(;)Ans3(;)Ans4 (with $ marking correct answers)
+ * - Flashcard: Question(;)Answer
  * @param {string} csvContent - Raw CSV content ((;)-separated)
  * @param {string} fileName - Name of the CSV file (used for study set name)
  * @returns {Object} - Parsed study set or error
@@ -81,7 +85,7 @@ export const parseCSVToStudySet = (
 };
 
 /**
- * Parse a single CSV line into a question
+ * Parse a single CSV line into a question (supports both multiple choice and flashcard formats)
  * @param {string} line - CSV line to parse
  * @param {number} lineNumber - Line number for error reporting
  * @returns {Object} - Parsed question or error
@@ -91,83 +95,132 @@ const parseCSVLine = (line, lineNumber) => {
     // Parse CSV line with proper handling of quoted fields
     const fields = parseCSVFields(line);
 
-    // Validate field count
-    if (fields.length !== 5) {
+    // Determine format based on field count
+    if (fields.length === 2) {
+      // Flashcard format: Question(;)Answer
+      return parseFlashcardLine(fields, lineNumber);
+    } else if (fields.length === 5) {
+      // Multiple choice format: Question(;)Ans1(;)Ans2(;)Ans3(;)Ans4
+      return parseMultipleChoiceLine(fields, lineNumber);
+    } else {
       return {
         success: false,
-        error: `Line ${lineNumber}: Expected 5 fields (Question(;)Ans1(;)Ans2(;)Ans3(;)Ans4), found ${fields.length}`,
+        error: `Line ${lineNumber}: Expected 2 fields (Question(;)Answer) for flashcards or 5 fields (Question(;)Ans1(;)Ans2(;)Ans3(;)Ans4) for multiple choice, found ${fields.length}`,
       };
     }
-
-    const [questionText, ans1, ans2, ans3, ans4] = fields;
-
-    // Validate question text
-    if (!questionText.trim()) {
-      return {
-        success: false,
-        error: `Line ${lineNumber}: Question text cannot be empty`,
-      };
-    }
-
-    // Process answers and find correct ones
-    const answers = [ans1, ans2, ans3, ans4];
-    const correctIndices = [];
-    const processedAnswers = [];
-
-    answers.forEach((answer, index) => {
-      const trimmedAnswer = answer.trim();
-
-      if (trimmedAnswer.startsWith("$")) {
-        // This is a correct answer
-        correctIndices.push(index);
-        // Remove the $ prefix for the actual answer text
-        processedAnswers[index] = trimmedAnswer.substring(1).trim();
-      } else {
-        processedAnswers[index] = trimmedAnswer;
-      }
-    });
-
-    // Validate we found at least one correct answer
-    if (correctIndices.length === 0) {
-      return {
-        success: false,
-        error: `Line ${lineNumber}: No correct answer found (mark correct answer with $ prefix)`,
-      };
-    }
-
-    // Validate all answers have content
-    const emptyAnswers = processedAnswers
-      .map((answer, index) => ({ answer, index }))
-      .filter(({ answer }) => !answer.trim())
-      .map(({ index }) => index + 1);
-
-    if (emptyAnswers.length > 0) {
-      return {
-        success: false,
-        error: `Line ${lineNumber}: Empty answer(s) found at position(s): ${emptyAnswers.join(", ")}`,
-      };
-    }
-
-    // Create the question (use first correct answer for compatibility)
-    const question = createQuestion(
-      questionText.trim(),
-      processedAnswers,
-      correctIndices[0],
-    );
-
-    // Store all correct indices for future use
-    question.correctIndices = correctIndices;
-
-    return {
-      success: true,
-      question,
-    };
   } catch (error) {
     return {
       success: false,
       error: `Line ${lineNumber}: ${error.message}`,
     };
   }
+};
+
+/**
+ * Parse a flashcard line (2 fields: Question(;)Answer)
+ * @param {Array} fields - Parsed CSV fields
+ * @param {number} lineNumber - Line number for error reporting
+ * @returns {Object} - Parsed flashcard question or error
+ */
+const parseFlashcardLine = (fields, lineNumber) => {
+  const [questionText, answerText] = fields;
+
+  // Validate question text
+  if (!questionText.trim()) {
+    return {
+      success: false,
+      error: `Line ${lineNumber}: Question text cannot be empty`,
+    };
+  }
+
+  // Validate answer text
+  if (!answerText.trim()) {
+    return {
+      success: false,
+      error: `Line ${lineNumber}: Answer text cannot be empty`,
+    };
+  }
+
+  // Create the flashcard
+  const question = createFlashcard(questionText.trim(), answerText.trim());
+
+  return {
+    success: true,
+    question,
+  };
+};
+
+/**
+ * Parse a multiple choice line (5 fields: Question(;)Ans1(;)Ans2(;)Ans3(;)Ans4)
+ * @param {Array} fields - Parsed CSV fields
+ * @param {number} lineNumber - Line number for error reporting
+ * @returns {Object} - Parsed multiple choice question or error
+ */
+const parseMultipleChoiceLine = (fields, lineNumber) => {
+  const [questionText, ans1, ans2, ans3, ans4] = fields;
+
+  // Validate question text
+  if (!questionText.trim()) {
+    return {
+      success: false,
+      error: `Line ${lineNumber}: Question text cannot be empty`,
+    };
+  }
+
+  // Process answers and find correct ones
+  const answers = [ans1, ans2, ans3, ans4];
+  const correctIndices = [];
+  const processedAnswers = [];
+
+  answers.forEach((answer, index) => {
+    const trimmedAnswer = answer.trim();
+
+    if (trimmedAnswer.startsWith("$")) {
+      // This is a correct answer
+      correctIndices.push(index);
+      // Remove the $ prefix for the actual answer text
+      processedAnswers[index] = trimmedAnswer.substring(1).trim();
+    } else {
+      processedAnswers[index] = trimmedAnswer;
+    }
+  });
+
+  // Validate we found at least one correct answer
+  if (correctIndices.length === 0) {
+    return {
+      success: false,
+      error: `Line ${lineNumber}: No correct answer found (mark correct answer with $ prefix)`,
+    };
+  }
+
+  // Validate all answers have content
+  const emptyAnswers = processedAnswers
+    .map((answer, index) => ({ answer, index }))
+    .filter(({ answer }) => !answer.trim())
+    .map(({ index }) => index + 1);
+
+  if (emptyAnswers.length > 0) {
+    return {
+      success: false,
+      error: `Line ${lineNumber}: Empty answer(s) found at position(s): ${emptyAnswers.join(", ")}`,
+    };
+  }
+
+  // Create the question (use first correct answer for compatibility)
+  const question = createQuestion(
+    questionText.trim(),
+    processedAnswers,
+    correctIndices[0],
+    "multiple_choice",
+  );
+
+  // Store all correct indices for future use
+  question.correctIndices = correctIndices;
+
+  return {
+    success: true,
+    question,
+  };
 };
 
 /**
@@ -258,6 +311,19 @@ What is 2 + 2?(;)$4(;)3(;)5(;)6
 Who wrote Romeo and Juliet?(;)$William Shakespeare(;)Charles Dickens(;)Mark Twain(;)Jane Austen
 Which are primary colors?(;)$Red(;)$Blue(;)Green(;)$Yellow
 Which programming languages are object-oriented?(;)$Java(;)$C++(;)Assembly(;)$Python`;
+};
+
+/**
+ * Generate sample flashcard CSV content for user reference
+ * @returns {string} - Sample flashcard CSV content
+ */
+export const generateSampleFlashcardCSV = () => {
+  return `What is the capital of France?(;)Paris
+Which planet is known as the Red Planet?(;)Mars
+What is 2 + 2?(;)4
+Who wrote Romeo and Juliet?(;)William Shakespeare
+What does HTML stand for?(;)HyperText Markup Language
+What is the largest ocean on Earth?(;)Pacific Ocean`;
 };
 
 /**
