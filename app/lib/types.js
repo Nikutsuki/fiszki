@@ -45,7 +45,7 @@ export const createQuestion = (
 
 // Flashcard-specific question structure
 export const createFlashcard = (question, answer) => ({
-  id: generateId(),
+  id: generateContentId(question + '|' + answer), // Use deterministic ID based on content
   question,
   answer,
   type: "flashcard",
@@ -102,6 +102,22 @@ export const createSessionQuestion = (
 // Generate unique ID
 export const generateId = () => {
   return Date.now().toString(36) + Math.random().toString(36).substr(2);
+};
+
+// Generate deterministic ID from content (for flashcards)
+export const generateContentId = (content) => {
+  // Simple hash function to generate consistent IDs from content
+  let hash = 0;
+  if (content.length === 0) return hash.toString();
+  
+  for (let i = 0; i < content.length; i++) {
+    const char = content.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32-bit integer
+  }
+  
+  // Convert to positive base36 string
+  return Math.abs(hash).toString(36);
 };
 
 // Generate consistent ID from filename (for CSV-based study sets)

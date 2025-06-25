@@ -11,6 +11,7 @@ import { flashcardStorage } from "../lib/storage.js";
 
 const FlashcardInterface = ({
   session,
+  currentUser,
   onAnswerQuestion,
   onCompleteSession,
   onAbandonSession,
@@ -164,7 +165,10 @@ const FlashcardInterface = ({
 
           setTimeout(() => {
             if (isLastCard) {
-              handleCompleteSession();
+              // Ensure the last card's state is saved before completing session
+              setTimeout(() => {
+                handleCompleteSession();
+              }, 100);
             } else {
               setCurrentCardIndex((prev) => prev + 1);
             }
@@ -295,7 +299,96 @@ const FlashcardInterface = ({
 
   const handleCompleteSession = async () => {
     try {
-      const result = await onCompleteSession();
+      // Get all cards from the session
+      const allSessionCardIds = session.questions.map(q => q.questionId);
+      
+      // Instead of relying on state, get the answers directly from session questions
+      // This is more reliable as it reflects the actual answered state
+      const sessionKnownCards = [];
+      const sessionUnknownCards = [];
+      const unclassifiedCards = [];
+      
+      session.questions.forEach(question => {
+        if (question.userAnswer === "known") {
+          sessionKnownCards.push(question.questionId);
+        } else if (question.userAnswer === "unknown") {
+          sessionUnknownCards.push(question.questionId);
+        } else {
+          // This should not happen if all cards were answered
+          unclassifiedCards.push(question.questionId);
+        }
+      });
+      
+      // Get previous progress
+      const previousProgress = currentUser?.flashcardProgress?.[session.studySetId] || {};
+      const previousKnown = new Set(previousProgress.knownCards || []);
+      const previousUnknown = new Set(previousProgress.unknownCards || []);
+      
+      console.log('Debug - Session completion:');
+      console.log('All session cards:', allSessionCardIds);
+      console.log('Session known cards:', sessionKnownCards);
+      console.log('Session unknown cards:', sessionUnknownCards);
+      console.log('Unclassified cards:', unclassifiedCards);
+      console.log('Previous known:', Array.from(previousKnown));
+      console.log('Previous unknown:', Array.from(previousUnknown));
+
+      // A. Create mutable copies of previous state
+      const newKnown = new Set(previousKnown);
+      const newUnknown = new Set(previousUnknown);
+      
+      // B. Loop through session.questions and update the sets
+      session.questions.forEach(question => {
+        const id = question.questionId;
+        if (question.userAnswer === "known") {
+          newKnown.add(id);
+          newUnknown.delete(id);
+        } else if (question.userAnswer === "unknown") {
+          newUnknown.add(id);
+          newKnown.delete(id);
+        }
+      });
+      
+      // C. Delta computation: compare previous vs new state for each session question
+      const knownAdd = [];
+      const knownRemove = [];
+      const unknownAdd = [];
+      const unknownRemove = [];
+      
+      session.questions.forEach(question => {
+        const id = question.questionId;
+        
+        // Compare membership in previous vs new sets
+        const wasKnown = previousKnown.has(id);
+        const wasUnknown = previousUnknown.has(id);
+        const isNowKnown = newKnown.has(id);
+        const isNowUnknown = newUnknown.has(id);
+        
+        // Push to appropriate delta arrays
+        if (!wasKnown && isNowKnown) {
+          knownAdd.push(id);
+        }
+        if (wasKnown && !isNowKnown) {
+          knownRemove.push(id);
+        }
+        if (!wasUnknown && isNowUnknown) {
+          unknownAdd.push(id);
+        }
+        if (wasUnknown && !isNowUnknown) {
+          unknownRemove.push(id);
+        }
+      });
+      
+      // Create flashcard updates object with deltas
+      const flashcardUpdates = {
+        knownAdd,
+        knownRemove,
+        unknownAdd,
+        unknownRemove
+      };
+      
+      console.log('Debug - Flashcard updates:', flashcardUpdates);
+      
+      const result = await onCompleteSession(flashcardUpdates);
       if (result.success) {
         // Navigation will be handled by parent component
       }

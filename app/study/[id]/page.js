@@ -12,6 +12,8 @@ import FlashcardInterface from "../../components/FlashcardInterface.js";
 import useStudySets from "../../hooks/useStudySets.js";
 import useSessions from "../../hooks/useSessions.js";
 import { useAuth } from "../../hooks/useAuth.js";
+import { flashcardStorage } from "../../lib/storage.js";
+import { filterFlashcards, getFlashcardCounts } from "../../lib/utils.js";
 
 export default function StudySession() {
   const router = useRouter();
@@ -45,6 +47,10 @@ export default function StudySession() {
   const [isStarting, setIsStarting] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [isFlashcardMode, setIsFlashcardMode] = useState(false);
+  const [flashcardStudyMode, setFlashcardStudyMode] = useState("all");
+  const [knownCards, setKnownCards] = useState(new Set());
+  const [unknownCards, setUnknownCards] = useState(new Set());
+  const [totalCards, setTotalCards] = useState(0);
 
   // Retry function for loading study set
   const retryLoadStudySet = useCallback(async () => {
@@ -89,6 +95,31 @@ export default function StudySession() {
         );
         setIsFlashcardMode(hasFlashcards);
 
+        // Calculate known/unknown cards for flashcard mode
+        if (hasFlashcards) {
+          const progress = currentUser?.flashcardProgress?.[foundStudySet.id] ?? {
+            knownCards: [],
+            unknownCards: [],
+          };
+          const counts = getFlashcardCounts(foundStudySet.questions, progress);
+          
+          const known = new Set(progress.knownCards);
+          const unknown = new Set();
+          
+          foundStudySet.questions.forEach((question) => {
+            if (!progress.knownCards.includes(question.id) && !progress.unknownCards.includes(question.id)) {
+              unknown.add(question.id);
+            } else if (progress.unknownCards.includes(question.id)) {
+              unknown.add(question.id);
+            }
+          });
+          
+          setKnownCards(known);
+          setUnknownCards(unknown);
+        }
+        
+        setTotalCards(foundStudySet.questions.length);
+
         setError(null); // Clear any previous errors
         setLoading(false);
       } else {
@@ -114,6 +145,28 @@ export default function StudySession() {
     studySetsReady,
   ]);
 
+  // Helper function to get filtered questions count
+  const getFilteredQuestionsCount = () => {
+    let questions = studySet?.questions || [];
+    if (isFlashcardMode && studySet) {
+      const progress = currentUser?.flashcardProgress?.[studySet.id] ?? {
+        knownCards: [],
+        unknownCards: [],
+      };
+      if (flashcardStudyMode === "known") {
+        questions = questions.filter(q => progress.knownCards.includes(q.id));
+      } else if (flashcardStudyMode === "unknown") {
+        questions = questions.filter(
+          q =>
+            progress.unknownCards.includes(q.id) ||
+            (!progress.knownCards.includes(q.id) &&
+             !progress.unknownCards.includes(q.id))
+        );
+      }
+    }
+    return questions.length;
+  };
+
   const handleStartSession = async () => {
     if (!studySet || isStarting) return;
 
@@ -121,7 +174,36 @@ export default function StudySession() {
     setError(null);
 
     try {
-      const result = await startSession(studySet, sessionOptions);
+      // Filter questions based on flashcard mode if applicable
+      let questions = studySet.questions;
+      if (isFlashcardMode) {
+        const progress = currentUser.flashcardProgress?.[studySet.id] ?? {
+          knownCards: [],
+          unknownCards: [],
+        };
+        if (flashcardStudyMode === "known") {
+          questions = questions.filter(q => progress.knownCards.includes(q.id));
+        } else if (flashcardStudyMode === "unknown") {
+          questions = questions.filter(
+            q =>
+              progress.unknownCards.includes(q.id) ||
+              (!progress.knownCards.includes(q.id) &&
+               !progress.unknownCards.includes(q.id))
+          );
+        }
+      }
+
+      // Check if no questions remain after filtering
+      if (questions.length === 0) {
+        setError(null); // Don't show this as an error
+        setIsStarting(false);
+        return;
+      }
+
+      // Create a shallow clone of studySet with the filtered questions array
+      const filteredStudySet = { ...studySet, questions };
+
+      const result = await startSession(filteredStudySet, sessionOptions);
 
       if (result.success) {
         setShowOptions(false);
@@ -144,9 +226,9 @@ export default function StudySession() {
     }
   };
 
-  const handleCompleteSession = async () => {
+  const handleCompleteSession = async (flashcardUpdates = null) => {
     try {
-      const result = await completeSession();
+      const result = await completeSession(flashcardUpdates);
 
       if (result.success) {
         // Redirect to session report
@@ -285,10 +367,28 @@ export default function StudySession() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                 <div className="bg-blue-50 dark:bg-blue-900/50 p-4 rounded-lg">
                   <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                    {studySet.questions.length}
+                    {(() => {
+                      if (isFlashcardMode && flashcardStudyMode !== "all") {
+                        const progress = currentUser?.flashcardProgress?.[studySet.id] ?? {
+                          knownCards: [],
+                          unknownCards: [],
+                        };
+                        if (flashcardStudyMode === "known") {
+                          return studySet.questions.filter(q => progress.knownCards.includes(q.id)).length;
+                        } else if (flashcardStudyMode === "unknown") {
+                          return studySet.questions.filter(
+                            q =>
+                              progress.unknownCards.includes(q.id) ||
+                              (!progress.knownCards.includes(q.id) &&
+                               !progress.unknownCards.includes(q.id))
+                          ).length;
+                        }
+                      }
+                      return studySet.questions.length;
+                    })()}
                   </div>
                   <div className="text-sm text-gray-600 dark:text-gray-300">
-                    Questions
+                    Questions{isFlashcardMode && flashcardStudyMode !== "all" ? ` (${flashcardStudyMode})` : ""}
                   </div>
                 </div>
                 <div className="bg-green-50 dark:bg-green-900/50 p-4 rounded-lg">
@@ -310,13 +410,83 @@ export default function StudySession() {
               </div>
             </div>
 
-            {/* Session Options */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
                 Session Options
               </h2>
 
               <div className="space-y-4">
+                {/* Flashcard Mode Options */}
+                {isFlashcardMode && (
+                  <div className="flex flex-col space-y-4">
+                    <div className="flex items-center space-x-2">
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Flashcard Mode</label>
+                      <div 
+                        className="group relative inline-block"
+                        title="Choose which cards to study based on your progress"
+                      >
+                        <svg 
+                          className="w-4 h-4 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 cursor-help" 
+                          fill="none" 
+                          viewBox="0 0 24 24" 
+                          stroke="currentColor"
+                        >
+                          <path 
+                            strokeLinecap="round" 
+                            strokeLinejoin="round" 
+                            strokeWidth={2} 
+                            d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" 
+                          />
+                        </svg>
+                        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50">
+                          <div className="space-y-1">
+                            <div><strong>All:</strong> Study all flashcards (comprehensive review)</div>
+                            <div><strong>Known:</strong> Review cards you've already learned</div>
+                            <div><strong>Unknown:</strong> Focus on challenging or new cards</div>
+                          </div>
+                          <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900"></div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex space-x-4">
+                      {['all', 'known', 'unknown'].map((mode) => {
+                        const isDisabled =
+                          (mode === 'known' && knownCards.size === 0) ||
+                          (mode === 'unknown' && unknownCards.size === 0);
+
+                        return (
+                          <div key={mode} className="flex items-center">
+                            <input
+                              type="radio"
+                              id={`flashcard-mode-${mode}`}
+                              name="flashcard-mode"
+                              value={mode}
+                              checked={flashcardStudyMode === mode}
+                              onChange={() => setFlashcardStudyMode(mode)}
+                              disabled={isDisabled}
+                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded disabled:opacity-50"
+                            />
+                            <label htmlFor={`flashcard-mode-${mode}`} className={`ml-2 text-sm font-medium ${
+                              isDisabled 
+                                ? 'text-gray-400 dark:text-gray-500' 
+                                : 'text-gray-700 dark:text-gray-300'
+                            }`}>
+                              {mode === 'all' && `All Flashcards (${totalCards})`}
+                              {mode === 'known' && `Known Flashcards (${knownCards.size})`}
+                              {mode === 'unknown' && `Unknown Flashcards (${unknownCards.size})`}
+                            </label>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {flashcardStudyMode === 'known' && knownCards.size === 0 && (
+                      <p className="text-sm text-red-600 dark:text-red-400">No known cards available. Complete some flashcards first!</p>
+                    )}
+                    {flashcardStudyMode === 'unknown' && unknownCards.size === 0 && (
+                      <p className="text-sm text-red-600 dark:text-red-400">No unknown cards available. All cards have been learned!</p>
+                    )}
+                  </div>
+                )}
                 <div className="flex items-center justify-between">
                   <div>
                     <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -399,9 +569,55 @@ export default function StudySession() {
               </div>
             )}
 
-            {/* Start Session Button */}
+{/* Start Session Button */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
               <div className="flex justify-between items-center">
+                <button
+                  onClick={async () => {
+                    const confirmed = window.confirm(
+                      "Are you sure you want to reset your progress? This action cannot be undone."
+                    );
+                    if (confirmed) {
+                      try {
+                        // Reset flashcard progress
+                        const flashcardUpdates = {
+                          knownAdd: [],
+                          knownRemove: Array.from(knownCards),
+                          unknownAdd: [],
+                          unknownRemove: Array.from(unknownCards)
+                        };
+                        
+                        // Call the progress API to reset on server
+                        const response = await fetch('/api/auth/progress', {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                          },
+                          body: JSON.stringify({
+                            studySetId: studySet.id,
+                            sessionStats: { score: 0, totalTime: 0 },
+                            flashcardUpdates
+                          })
+                        });
+                        
+                        if (response.ok) {
+                          // Reset local state
+                          setKnownCards(new Set());
+                          setUnknownCards(new Set());
+                          alert("Progress has been reset successfully.");
+                        } else {
+                          throw new Error('Failed to reset progress on server');
+                        }
+                      } catch (error) {
+                        console.error('Failed to reset progress:', error);
+                        alert("Failed to reset progress. Please try again.");
+                      }
+                    }
+                  }}
+                  className="inline-flex items-center px-4 py-2 border border-red-300 dark:border-red-600 text-sm font-medium rounded-md text-red-700 dark:text-red-300 bg-white dark:bg-gray-700 hover:bg-red-50 dark:hover:bg-red-600 transition-colors"
+                >
+                  Reset Progress
+                </button>
                 <button
                   onClick={() => router.push("/")}
                   className="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
@@ -415,7 +631,10 @@ export default function StudySession() {
                     isStarting ||
                     studySet.questions.length === 0 ||
                     (sessionOptions.questionLimit &&
-                      sessionOptions.questionLimit < 1)
+                      sessionOptions.questionLimit < 1) ||
+                    (isFlashcardMode && flashcardStudyMode === 'known' && knownCards.size === 0) ||
+                    (isFlashcardMode && flashcardStudyMode === 'unknown' && unknownCards.size === 0) ||
+                    getFilteredQuestionsCount() === 0
                   }
                   className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-blue-500 dark:focus:ring-blue-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
@@ -459,6 +678,23 @@ export default function StudySession() {
                   starting a session.
                 </p>
               )}
+              
+              {/* Show alert when no filtered questions remain */}
+              {studySet.questions.length > 0 && getFilteredQuestionsCount() === 0 && (
+                <div className="mt-4 p-3 bg-green-50 dark:bg-green-900/50 border border-green-200 dark:border-green-800 rounded-md">
+                  <div className="flex items-center">
+                    <span className="text-lg mr-2">🎉</span>
+                    <p className="text-sm text-green-700 dark:text-green-300">
+                      {isFlashcardMode && flashcardStudyMode === 'unknown' 
+                        ? 'You have no Unknown flashcards left 🎉'
+                        : isFlashcardMode && flashcardStudyMode === 'known'
+                        ? 'You have no Known flashcards left'
+                        : 'No questions available for the selected filters'
+                      }
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -469,6 +705,7 @@ export default function StudySession() {
             {isFlashcardMode ? (
               <FlashcardInterface
                 session={currentSession}
+                currentUser={currentUser}
                 onAnswerQuestion={handleAnswerQuestion}
                 onCompleteSession={handleCompleteSession}
                 onAbandonSession={handleAbandonSession}

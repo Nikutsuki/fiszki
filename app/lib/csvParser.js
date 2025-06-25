@@ -9,6 +9,7 @@ import {
   createFlashcard,
   createStudySet,
   generateIdFromFilename,
+  generateContentId,
 } from "./types.js";
 
 /**

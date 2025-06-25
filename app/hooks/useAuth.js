@@ -99,17 +99,22 @@ export const useAuth = () => {
 
   // Function to update user progress (e.g., after a session)
   const updateProgress = useCallback(
-    async (studySetId, sessionStats) => {
+    async (studySetId, sessionStats, flashcardUpdates) => {
       if (!currentUser) return false;
 
       try {
+        const requestBody = { studySetId, sessionStats };
+        if (flashcardUpdates) {
+          requestBody.flashcardUpdates = flashcardUpdates;
+        }
+
         const response = await fetch("/api/auth/progress", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
           credentials: "include",
-          body: JSON.stringify({ studySetId, sessionStats }),
+          body: JSON.stringify(requestBody),
         });
 
         if (response.ok) {

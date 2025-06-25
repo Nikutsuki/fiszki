@@ -333,3 +333,60 @@ export const getRandomItem = (array) => {
 export const clamp = (value, min, max) => {
   return Math.min(Math.max(value, min), max);
 };
+
+/**
+ * Flashcard filtering utilities
+ */
+
+/**
+ * Filter flashcards based on known/unknown status
+ * @param {Array} questions - Array of questions/flashcards
+ * @param {Object} flashcardProgress - Progress object with knownCards and unknownCards arrays
+ * @param {string} mode - Filter mode: 'all', 'known', or 'unknown'
+ * @returns {Array} - Filtered questions
+ */
+export const filterFlashcards = (questions, flashcardProgress, mode) => {
+  if (!questions || questions.length === 0) {
+    return [];
+  }
+
+  const knownCards = new Set(flashcardProgress?.knownCards || []);
+  const unknownCards = new Set(flashcardProgress?.unknownCards || []);
+
+  switch (mode) {
+    case "known":
+      return questions.filter(q => knownCards.has(q.id));
+    case "unknown":
+      return questions.filter(q => 
+        unknownCards.has(q.id) || 
+        (!knownCards.has(q.id) && !unknownCards.has(q.id))
+      );
+    case "all":
+    default:
+      return questions;
+  }
+};
+
+/**
+ * Get flashcard counts for display
+ * @param {Array} questions - Array of questions/flashcards
+ * @param {Object} flashcardProgress - Progress object with knownCards and unknownCards arrays
+ * @returns {Object} - Object with total, known, and unknown counts
+ */
+export const getFlashcardCounts = (questions, flashcardProgress) => {
+  if (!questions || questions.length === 0) {
+    return { total: 0, known: 0, unknown: 0 };
+  }
+
+  const knownCards = new Set(flashcardProgress?.knownCards || []);
+  const unknownCards = new Set(flashcardProgress?.unknownCards || []);
+
+  const total = questions.length;
+  const known = questions.filter(q => knownCards.has(q.id)).length;
+  const unknown = questions.filter(q => 
+    unknownCards.has(q.id) || 
+    (!knownCards.has(q.id) && !unknownCards.has(q.id))
+  ).length;
+
+  return { total, known, unknown };
+};

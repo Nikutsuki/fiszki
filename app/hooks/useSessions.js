@@ -258,7 +258,7 @@ export const useSessions = () => {
     [currentSession],
   );
   // Complete the current session
-  const completeSession = useCallback(async () => {
+  const completeSession = useCallback(async (flashcardUpdates = null) => {
     try {
       if (!currentSession) {
         throw new Error("No active session");
@@ -300,6 +300,7 @@ export const useSessions = () => {
           const progressUpdateSuccess = await updateProgress(
             updatedSession.studySetId,
             sessionStats,
+            flashcardUpdates,
           );
 
           if (progressUpdateSuccess) {

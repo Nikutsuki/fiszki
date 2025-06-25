@@ -94,22 +94,59 @@ What is the largest ocean on Earth?(;)Pacific Ocean
 
 ## Flashcard Study Mode
 
-When studying flashcards, you get an interactive experience:
+When studying flashcards, you get an interactive experience with three different study modes:
 
-### Features:
+### Three Flashcard Study Modes:
+
+#### 1. **All Flashcards Mode** 🎯
+- Study all cards in your flashcard set
+- Perfect for comprehensive review sessions
+- Includes both new cards and cards you've already practiced
+- Best for initial learning and periodic full reviews
+
+#### 2. **Known Flashcards Mode** ✅
+- Study only cards you've previously marked as "known"
+- Great for maintaining knowledge of concepts you've already learned
+- Helps reinforce your strengths and prevent forgetting
+- Only available if you have cards marked as "known"
+
+#### 3. **Unknown Flashcards Mode** 📚
+- Study only cards marked as "unknown" or brand new cards
+- Focus your time on challenging material that needs more practice
+- Automatically includes any new cards you haven't studied yet
+- Most efficient for targeted learning and improvement
+
+### Interactive Features:
 - **Card Flipping**: Tap or click cards to reveal answers
 - **Swipe Gestures**: 
   - Swipe left (or click "I know it") if you know the answer
   - Swipe right (or click "I don't know it") if you need to study more
+- **Visual Feedback**: Cards show color hints during swiping (green for "know it", red for "don't know")
 - **Progress Tracking**: Each card tracks your confidence level and review history
 - **Spaced Repetition**: Cards you struggle with appear more frequently
 - **Difficulty Assessment**: The app learns which cards are harder for you
 
-### Progress Indicators:
-- **Known Cards**: Cards you've marked as "known"
-- **Learning Cards**: Cards you're still studying
-- **Confidence Level**: Shows how well you know each card (0-100%)
-- **Review History**: Tracks how many times you've seen each card and your accuracy
+### Progress Tracking & Statistics:
+
+#### How Progress is Tracked:
+- **Known Cards**: Cards you've swiped left or clicked "I know it" ✅
+- **Unknown Cards**: Cards you've swiped right or clicked "I don't know" ❌
+- **New Cards**: Cards you haven't studied yet (automatically included in "Unknown" mode)
+- **Confidence Level**: Shows how well you know each card (0-100%) based on review history
+- **Review History**: Tracks how many times you've seen each card and your accuracy rate
+- **Response Time**: Records how quickly you respond to each card
+
+#### Session Statistics:
+- **Real-time Counters**: See your known/unknown card counts during study sessions
+- **Progress Bar**: Visual indicator of session completion
+- **Session Timer**: Track total time spent studying
+- **Individual Card Stats**: View confidence level and review count for each card
+
+#### Progress Persistence:
+- Your flashcard progress is automatically saved after each session
+- Progress persists across different study sessions
+- You can reset progress for any study set if needed
+- Mode availability updates based on your current progress (e.g., "Known" mode only appears if you have known cards)
 
 ## Session Reports
 
